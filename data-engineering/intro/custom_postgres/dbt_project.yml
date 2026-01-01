@@ -33,4 +33,4 @@ models:
   custom_postgres:
     # Config indicated by + and applies to all files under models/example/
     example:
-      +materialized: view
+      +materialized: table

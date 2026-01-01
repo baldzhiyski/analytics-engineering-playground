@@ -38,6 +38,19 @@ services:
     networks:
       - elt_network
     command: ["python", "elt_script.py"]
+  
+  dbt:
+    image: ghcr.io/dbt-labs/dbt-postgres:latest
+    container_name: dbt
+    working_dir: /dbt
+    command: [ "run", "--profiles-dir", "/root/.dbt", "--project-dir", "/dbt"]
+    networks:
+      - elt_network
+    volumes:
+      - ./custom_postgres:/dbt
+      - ${USERPROFILE}\.dbt:/root/.dbt
+    depends_on:
+      - elt_script
 
 networks:
   elt_network:
