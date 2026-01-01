@@ -1,0 +1,47 @@
+version:  '3.8'
+
+services:
+  source_postgres:
+    image: postgres:13
+    container_name: source_postgres
+    environment:
+      POSTGRES_USER: source_user
+      POSTGRES_PASSWORD: source_password
+      POSTGRES_DB: source_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/init.sql:/var/lib/postgresql/data
+    networks:
+      - elt_network
+
+  destianation_postgres:
+    image: postgres:13
+    container_name: destination_postgres
+    environment:
+      POSTGRES_USER: dest_user
+      POSTGRES_PASSWORD: dest_password
+      POSTGRES_DB: dest_db
+    ports:
+      - "5433:5432"
+    volumes:
+       - ./data/init.sql:/var/lib/postgresql/data
+    networks:
+      - elt_network
+  
+  elt_script:
+    build: 
+      context: ./elt/
+      dockerfile: Dockerfile
+    container_name: elt_script
+    depends_on:
+      - source_postgres
+      - destianation_postgres
+    networks:
+      - elt_network
+    command: ["python", "elt_script.py"]
+
+networks:
+  elt_network:
+    driver: bridge
+    name: elt_network
