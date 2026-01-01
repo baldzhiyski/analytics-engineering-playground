@@ -1,0 +1,132 @@
+# =========================
+# VS Code
+# =========================
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# =========================
+# OS junk
+# =========================
+.DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# =========================
+# Python caches / build
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+pip-wheel-metadata/
+*.egg-info/
+.eggs/
+build/
+dist/
+*.whl
+
+# =========================
+# Virtual environments
+# =========================
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# =========================
+# Jupyter / Notebooks
+# =========================
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+.jupyter/
+
+# =========================
+# Data / artifacts 
+# =========================
+data/
+datasets/raw/*
+datasets/processed/*
+datasets/tmp/
+output/
+outputs/
+artifacts/
+tmp/
+temp/
+*.parquet
+*.arrow
+*.feather
+*.orc
+*.csv
+*.tsv
+
+# If you want to keep folder structure but not data files:
+# !datasets/raw/.gitkeep
+# !datasets/processed/.gitkeep
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+
+# =========================
+# Airflow / Dagster
+# =========================
+airflow.db
+airflow-webserver.pid
+dags/__pycache__/
+.dagster/
+dagster_storage/
+*.pid
+
+# =========================
+# Spark
+# =========================
+spark-warehouse/
+metastore_db/
+derby.log
+*.jar
+
+# =========================
+# Docker
+# =========================
+**/.env
+.env
+.env.*
+docker-compose.override.yml
+
+# =========================
+# Credentials / keys (never commit)
+# =========================
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+credentials*.json
+secrets*.yaml
+secrets*.yml
+
+# =========================
+# Node (if you have UI tools)
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# IDEs
+# =========================
+.idea/
+*.iml
