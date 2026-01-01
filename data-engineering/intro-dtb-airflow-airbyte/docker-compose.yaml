@@ -1,5 +1,46 @@
 version: "3.8"
 
+x-airflow-common: &airflow-common
+  build:
+    context: ./airflow
+    dockerfile: Dockerfile
+  networks:
+    - elt_network
+  environment: &airflow-env
+    # Airflow metadata DB
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow_postgres:5432/airflow
+
+    # Auth manager for Airflow 3 (FAB)
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+
+    AIRFLOW__CORE__HOSTNAME_CALLABLE: airflow.utils.net.get_host_ip_address
+
+    # Local dev defaults
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__FERNET_KEY: plIipb9RU3-3wJ1UNaAtqVNJrqFEks1-dGbJM34EW7U=
+    AIRFLOW__API__SECRET_KEY: secret
+    AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+
+    # IMPORTANT: UI base url (for links & log URLs)
+    AIRFLOW__WEBSERVER__BASE_URL: http://localhost:8080
+
+    # IMPORTANT: served logs (fixes http://:8793/...)
+    AIRFLOW__LOGGING__WORKER_LOG_SERVER_HOST: localhost
+    AIRFLOW__LOGGING__WORKER_LOG_SERVER_PORT: 8793
+    # This one prevents "empty host" in some setups:
+    AIRFLOW__LOGGING__WORKER_LOG_SERVER_PROTOCOL: http
+
+    # Optional: your ELT connections (inside docker network)
+    AIRFLOW_CONN_SOURCE_POSTGRES: postgresql://source_user:source_password@source_postgres:5432/source_db
+    AIRFLOW_CONN_DESTINATION_POSTGRES: postgresql://dest_user:dest_password@destination_postgres:5432/dest_db
+
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./elt:/opt/airflow/elt
+    - ./custom_postgres:/opt/dbt
+    - ${USERPROFILE}\.dbt:/root/.dbt
+    - /var/run/docker.sock:/var/run/docker.sock
+
 services:
   source_postgres:
     image: postgres:13
@@ -14,6 +55,11 @@ services:
       - ./data/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - elt_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U source_user -d source_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   destination_postgres:
     image: postgres:13
@@ -26,31 +72,78 @@ services:
       - "5433:5432"
     networks:
       - elt_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dest_user -d dest_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
-  elt_script:
-    build:
-      context: ./elt/
-      dockerfile: Dockerfile
-    container_name: elt_script
-    depends_on:
-      - source_postgres
-      - destination_postgres
+  airflow_postgres:
+    image: postgres:13
+    container_name: airflow_postgres
     networks:
       - elt_network
-    command: ["python", "elt_script.py"]
-  
-  dbt:
-    image: ghcr.io/dbt-labs/dbt-postgres:latest
-    container_name: dbt
-    working_dir: /dbt
-    command: [ "run", "--profiles-dir", "/root/.dbt", "--project-dir", "/dbt"]
-    networks:
-      - elt_network
-    volumes:
-      - ./custom_postgres:/dbt
-      - ${USERPROFILE}\.dbt:/root/.dbt
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # One-time init: migrate DB + create admin
+  init-airflow:
+    <<: *airflow-common
+    container_name: airflow_init
     depends_on:
-      - elt_script
+      airflow_postgres:
+        condition: service_healthy
+    restart: "no"
+    user: root
+    command: >
+      bash -c "set -e; airflow db migrate; airflow users create -u airflow -p password -f John -l Doe -r Admin -e admin@example.com || true"
+
+
+  # Airflow UI/API
+  api-server:
+    <<: *airflow-common
+    container_name: airflow_api_server
+    depends_on:
+      airflow_postgres:
+        condition: service_healthy
+      init-airflow:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+    user: root
+    command: api-server
+
+  # REQUIRED in Airflow 3 to parse DAGs reliably
+  dag-processor:
+    <<: *airflow-common
+    container_name: airflow_dag_processor
+    depends_on:
+      airflow_postgres:
+        condition: service_healthy
+      init-airflow:
+        condition: service_completed_successfully
+    user: root
+    command: dag-processor
+
+  scheduler:
+    <<: *airflow-common
+    container_name: airflow_scheduler
+    depends_on:
+      airflow_postgres:
+        condition: service_healthy
+      init-airflow:
+        condition: service_completed_successfully
+    user: root
+    command: scheduler
+    ports:
+    - "8793:8793"
 
 networks:
   elt_network:
